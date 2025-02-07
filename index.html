@@ -706,7 +706,7 @@ gsap.registerPlugin(ScrollTrigger);
 const slider = document.querySelector(".slider-horizontal-container");
 const slides = document.querySelectorAll(".slider-horizontal-container > div");
 const slideCount = slides.length;
-let slideWidth = document.documentElement.clientWidth; // More reliable across devices
+let slideWidth = window.innerWidth;
 let currentIndex = 0;
 let isAnimating = false;
 
@@ -736,20 +736,19 @@ function updateSlideCounter() {
 function goToSlide(index) {
   if (!isAnimating && index >= 0 && index < slideCount && index !== currentIndex) {
     isAnimating = true;
-
+    
     // Kill any existing tweens
     gsap.killTweensOf(slider);
-
+    
     gsap.to(slider, {
       x: -index * slideWidth,
-      duration: 0.8, // Adjusted for smoother transitions
-      ease: "power2.out", // Smoother easing
-      force3D: true, // Forces GPU acceleration
+      duration: 1,
+      ease: "power2.out",
       onComplete: () => {
         currentIndex = index;
         isAnimating = false;
         updateSlideCounter();
-      },
+      }
     });
   }
 }
@@ -760,13 +759,25 @@ const sliderTrigger = ScrollTrigger.create({
   pin: true,
   start: "top top",
   end: () => `+=${slideWidth * (slideCount - 1)}`,
-  scrub: 1, // Adjusted for better smoothness across devices
+  scrub: 1,
+  snap: {
+    snapTo: 1 / (slideCount - 1),
+    duration: { min: 0.2, max: 0.3 },
+    delay: 0,
+    ease: "power1.inOut"
+  },
   onUpdate: (self) => {
     if (!isAnimating) {
       const progress = self.progress;
       const targetIndex = Math.round(progress * (slideCount - 1));
       if (targetIndex !== currentIndex) {
-        goToSlide(targetIndex);
+        currentIndex = targetIndex;
+        updateSlideCounter();
+        gsap.to(slider, {
+          x: -currentIndex * slideWidth,
+          duration: 0.5,
+          ease: "power2.out"
+        });
       }
     }
   },
@@ -781,25 +792,25 @@ const sliderTrigger = ScrollTrigger.create({
   },
   onLeaveBack: () => {
     slideCounter.style.opacity = "0";
-  },
+  }
 });
 
-// Improved wheel handler (Windows Fix)
+// Improved wheel handler
 let wheelTimeout;
 const handleWheel = (e) => {
   if (!isAnimating && sliderTrigger.isActive) {
     clearTimeout(wheelTimeout);
     wheelTimeout = setTimeout(() => {
-      let direction = Math.sign(e.deltaY); // Normalize scroll direction
+      const direction = e.deltaY > 0 ? 1 : -1;
       const targetIndex = Math.max(0, Math.min(slideCount - 1, currentIndex + direction));
       if (targetIndex !== currentIndex) {
         goToSlide(targetIndex);
       }
-    }, 80); // Increased debounce time for better performance
+    }, 50);
   }
 };
 
-// Add wheel event listener
+// Add wheel event listener with proper conditions
 document.addEventListener("wheel", handleWheel, { passive: true });
 
 // Improved touch handling
@@ -807,58 +818,49 @@ let touchStartX;
 let touchStartY;
 let touchThreshold = 50; // Minimum swipe distance
 
-document.addEventListener(
-  "touchstart",
-  (e) => {
-    touchStartX = e.touches[0].clientX;
-    touchStartY = e.touches[0].clientY;
-  },
-  { passive: true }
-);
+document.addEventListener("touchstart", (e) => {
+  touchStartX = e.touches[0].clientX;
+  touchStartY = e.touches[0].clientY;
+}, { passive: true });
 
-document.addEventListener(
-  "touchend",
-  (e) => {
-    if (!isAnimating && sliderTrigger.isActive) {
-      const touchEndX = e.changedTouches[0].clientX;
-      const touchEndY = e.changedTouches[0].clientY;
-      const deltaX = touchStartX - touchEndX;
-      const deltaY = touchStartY - touchEndY;
-
-      // Only handle horizontal swipes when the horizontal movement is greater
-      if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > touchThreshold) {
-        const direction = deltaX > 0 ? 1 : -1;
-        const targetIndex = Math.max(0, Math.min(slideCount - 1, currentIndex + direction));
-        if (targetIndex !== currentIndex) {
-          goToSlide(targetIndex);
-        }
+document.addEventListener("touchend", (e) => {
+  if (!isAnimating && sliderTrigger.isActive) {
+    const touchEndX = e.changedTouches[0].clientX;
+    const touchEndY = e.changedTouches[0].clientY;
+    const deltaX = touchStartX - touchEndX;
+    const deltaY = touchStartY - touchEndY;
+    
+    // Only handle horizontal swipes when the horizontal movement is greater
+    if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > touchThreshold) {
+      const direction = deltaX > 0 ? 1 : -1;
+      const targetIndex = Math.max(0, Math.min(slideCount - 1, currentIndex + direction));
+      if (targetIndex !== currentIndex) {
+        goToSlide(targetIndex);
       }
     }
-  },
-  { passive: true }
-);
+  }
+}, { passive: true });
 
 // Improved resize handler
 let resizeTimeout;
 window.addEventListener("resize", () => {
   clearTimeout(resizeTimeout);
   resizeTimeout = setTimeout(() => {
-    slideWidth = document.documentElement.clientWidth; // More reliable across devices
+    slideWidth = window.innerWidth;
     slider.style.width = `${slideWidth * slideCount}px`;
-
+    
     // Update current slide position
-    gsap.set(slider, {
+    gsap.set(slider, { 
       x: -currentIndex * slideWidth,
     });
-
+    
     // Refresh ScrollTrigger
     ScrollTrigger.refresh();
-  }, 150); // Slightly increased debounce
+  }, 100);
 });
 
 // Initialize
 updateSlideCounter();
-
   </script>
 </body>
 </html>
